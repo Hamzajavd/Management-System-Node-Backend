@@ -12,6 +12,8 @@ const transporter = nodemailer.createTransport({
     }
 });
 
+const user = 
+
 
 router.post('/forget-password', async (req, res) => {
     const { email } = req.body;
