@@ -142,21 +142,29 @@ router.get('/leaderboard', async (req, res) => {
     try {
         connection = await db.getConnection();
         const query = `
-          SELECT 
-        p.name AS player_name, 
-        u.image AS image, 
-        SUM(ms.goals) AS total_goals, 
-        SUM(ms.assists) AS total_assists
-    FROM match_stats ms
-    JOIN players p ON ms.player_id = p.player_id
-    LEFT JOIN users u ON p.user_id = u.user_id 
-    GROUP BY p.player_id, p.name, u.image
-    ORDER BY total_goals DESC
-    LIMIT 10;
+            SELECT 
+                p.name AS player_name, 
+                u.image AS photo,  
+                p.jersey_number,
+                COALESCE(SUM(ms.goals), 0) AS total_goals, 
+                COALESCE(SUM(ms.assists), 0) AS total_assists,
+                COALESCE(SUM(ms.red_cards), 0) AS red_cards,
+                COALESCE(SUM(ms.yellow_cards), 0) AS yellow_cards
+            FROM players p
+            LEFT JOIN match_stats ms ON p.player_id = ms.player_id
+            LEFT JOIN users u ON p.user_id = u.user_id 
+            GROUP BY 
+                p.player_id, 
+                p.name, 
+                u.image, 
+                p.jersey_number
+            ORDER BY total_goals DESC, total_assists DESC
+            LIMIT 10;
         `;
         const [rows] = await connection.execute(query);
         res.status(200).json(rows);
     } catch (error) {
+        console.error("SQL Error Details:", error);
         res.status(500).json({ error: error.message });
     } finally {
         if (connection) connection.release();
@@ -165,18 +173,17 @@ router.get('/leaderboard', async (req, res) => {
 
 
 
-
 router.get('/latest', async (req, res) => {
     try {
         const query = "SELECT * FROM matches ORDER BY  CASE  WHEN status = 'Live' THEN 1 WHEN status = 'Upcoming' THEN 2  ELSE 3  END ASC,  match_date DESC,  match_id DESC LIMIT 1";
-        
-            
+
+
         const [rows] = await db.query(query);
 
         if (rows.length > 0) {
-            res.json(rows[0]); 
+            res.json(rows[0]);
         } else {
-            res.json(null); 
+            res.json(null);
         }
     } catch (err) {
         console.error("Database Error:", err);

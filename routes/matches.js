@@ -5,6 +5,7 @@ const { authenticateToken } = require('../middleware/authentication');
 const { checkRole } = require("../middleware/checkRole");
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs')
 require('dotenv').config();
 
 
@@ -202,6 +203,50 @@ router.patch('/update-result/:id', authenticateToken, checkRole(['admin', 'coach
         if (connection) connection.release();
     }
 });
+
+
+router.delete('/delete-match/:id',authenticateToken, checkRole(['admin']), async (req, res) => {
+ const matchId = req.params.id;
+
+ let connection;
+ try{
+    connection = await db.getConnection();
+
+    const [matchData] = await connection.execute(
+        'Select opponent_team_logo FROM matches where match_id=?',
+        [matchId]
+    )
+
+    if (matchData.length === 0) {
+            return res.status(404).json({ message: "Match nahi mila!" });
+        }
+
+        const fileName = matchData[0].opponent_team_logo;
+
+
+        const [result] = await connection.execute(
+            'DELETE FROM matches WHERE match_id = ?',
+            [matchId]
+        );
+
+
+        if (result.affectedRows > 0 && fileName) {
+            const filePath = path.join(__dirname, '../uploads', fileName); 
+            if (fs.existsSync(filePath)) {
+                fs.unlinkSync(filePath); 
+            }
+        }
+
+        res.status(200).json({ message: "Match and logo successfully deleted!" });
+
+ } catch (error) {
+        console.error("Delete Error:", error);
+        res.status(500).json({ error: error.message });
+    } finally {
+        if (connection) connection.release();
+    }
+ 
+})
 
 
 module.exports = router;
